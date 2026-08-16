@@ -1,0 +1,74 @@
+/*******************************************************************************
+*
+* McStas, neutron ray-tracing package
+*         Copyright 1997-2002, All rights reserved
+*         Risoe National Laboratory, Roskilde, Denmark
+*         Institut Laue Langevin, Grenoble, France
+*
+* Component: Slit_trpzd
+*
+* %I
+* Written by: Husain Manasawala
+* Date: Jan 27, 2023
+*
+* Trapezoidal slit
+*
+* %D
+* A simple quadrilateral slit. You may specify the vertices.
+* No transmission around the slit is allowed.
+*
+* Example: Slit(xmin=-0.01, xmax=0.01, ymin=-0.01, ymax=0.01)
+*          Slit(xwidth=0.02, yheight=0.02)
+*          Slit(radius=0.01)
+*
+* The Slit won't issue a warning if run as "closed"
+* 
+* %P
+* 
+* *
+* %E
+*******************************************************************************/
+
+
+DEFINE COMPONENT Slit_trapezoid_large
+DEFINITION PARAMETERS ()
+  SETTING PARAMETERS ()
+OUTPUT PARAMETERS ()
+/* Neutron parameters: (x,y,z,vx,vy,vz,t,sx,sy,sz,p) */
+INITIALIZE
+%{
+    double d = (132.2 + 79/2)/1000;
+%}
+
+TRACE
+%{
+
+    double d = (125.0/2.0 + 7.0 + 5.3 + 79.0/2.0)/1000.0;
+    PROP_Z0;
+
+    if (x< -((y+0.245)/140) || x> ((y+0.245)/140) || y< -0.035 || y> 0.035 && sqrt(x*x+(y+d)*(y+d))<0.1538 && sqrt(x*x+(y+d)*(y+d))>0.0748) {
+    //if (x<-0.00265 || x>0.00265 || y<-0.035 || y>0.035){
+
+      //p = 0.075 * exp(-sqrt( 6.62607015e-34/(1.675e-27*sqrt(vx * vx + vy * vy + vz * vz)) )) * p;
+      //t = (3.14159/2  - atan2(y + d,x)) / (30 * 3.14159);
+      //if (t>0.033) {
+      //  t = t - 0.033;
+      //}
+
+      //t = 0;
+      //p = 0.04 * (atan(-6.62607015e-34/(1.675e-27*sqrt(vx * vx + vy * vy + vz * vz))) / (3.1415/2) + 1);
+      RESTORE_NEUTRON(INDEX_CURRENT_COMP, x, y, z, vx, vy, vz, t, sx, sy, sz, p);
+      ABSORB;
+      //SCATTER;
+    }
+    else
+      //t = 0;
+      //printf("p was %f\n", p);
+      //printf("lamba is %f\n", 6.62607015e-34/(1.675e-27*sqrt(vx * vx + vy * vy + vz * vz)) );
+      //p = exp(-sqrt( 6.62607015e-34/(1.675e-27*sqrt(vx * vx + vy * vy + vz * vz)) * 1e10 / 2) ) * p;
+      //printf("p is %f\n", p);
+      SCATTER;
+%}
+
+
+END
