@@ -1,0 +1,765 @@
+/***********************************************************
+*         McStas instrument definition URL=http://mcstas.risoe.dk
+*
+* Instrument: ILL_H5 design 2014
+*
+* %Identification
+* Written by: Husain Manasawala (husainm97@gmail.com)
+* Date: Jul 2024
+* Origin: Universität Heidelberg
+* Release: McStas 2.7.2
+* Version: $Revision: 1.0$
+* %INSTRUMENT_SITE: ILL, Grenoble 
+*
+* H5 as it is installed in 2014, data taken from the spreadsheet "H52 Listing"
+*
+* %Description
+*
+* 
+* %End
+*******************************************************************************/
+
+
+DEFINE INSTRUMENT ILL_H5()
+
+DECLARE %{
+  /* HCS (H5) source  parameters (default values from E. Farhi's 2011 implementation) */
+  double t_0 = 0;
+  double sT3=413.5,sI3=4.916e12;	
+  double sT2=145.8,sI2=1.659e13; 	
+  double sT1=40.1,sI1=1.345e13; 	
+
+  double l_mini=0.5;
+  double l_maxi=30.5;
+
+  double gSlit = 5.3/1000;
+  double gSlit_h = 70/1000;
+
+  /* guide coating parameters */
+  double gR0          = 0.99;
+  double gQc          = 0.02174;
+  double gAlpha       = 2.07;
+  double gW           = 0.0025;
+  
+  double Al_Thickness = 0.001;
+  double gGap         = 0.001;
+
+  // GUIDE H5 // 
+  double W_5 = 0.17002 ;
+  double Lh5 = 1.0;
+  // GUIDE H5 //
+
+  // Guide H52 // 
+  double m_52 = 3.0;
+  double W_52_i = 0.062;
+  double W_52_f = 0.120;
+  double H_52_i = 0.120;
+  double H_52_f = 0.240;
+  double L52a = 1.775;
+  double L52b = 0.855; 
+  double L52c = 1.456;
+  double L52d = 0.738; // L52d was changed from 748 -> 738mm based on DPT Dist
+  double L52e = 0.4995;
+  double L52f = 1.4995;
+  double L52g = 1.306;
+  double L52h = 1.9975;
+  double L52i = 0.9965;
+  // Guide H52 ^^
+
+  // Guide H523 // 
+  double m_523GEN = 1.2+0.1;
+  double m_523LAT = 1.5;
+
+  double W_523_i = 0.055;
+  double H_523_i = 0.115;
+  double W_523_f = 0.060;
+  double H_523_f = 0.120;
+  double L523a = 0.9995;
+  double L523b = 1.4995;
+  double L523c = 0.4995;
+  double L523d = 1.2485;
+  double L523e = 1.440;
+  double L523f = 2.4995;
+
+  // In case a divergence file needs to be used
+  char xdiv_file[100];
+
+  /* This is a phenomenological model chosen after spline fits to the best wavelength 
+     distribution corrections, it exponentially suppresses long-lambda tail by an 
+     amount fit to TOF measurements conducted in 2020. */ 
+  double get_scale(double vx, double vy, double vz) {
+      double v = sqrt(vx * vx + vy * vy + vz * vz);
+      if (v <= 0.0) return 0.0;
+      double lambda = 3956.0337 / v;
+      if (lambda < 0.0 || lambda >= 30.0) return 0.0;
+      
+      const double a = 1.9333; 
+      const double k = 0.036015; 
+      
+      double scale = a * exp(-k * lambda); 
+      return (scale > 0.0) ? scale : 0.0;
+  }
+
+%}
+
+INITIALIZE %{ 
+
+%}
+
+TRACE
+
+/* ================================ H5 =============================== */
+COMPONENT Origin = Progress_bar()
+AT(0,0,0) ABSOLUTE
+
+// This shifts the source and entrance guide so the following components of the triple guide branch can be conveniently defined as per the listing document 
+COMPONENT HCS = Arm()
+AT ((0.17002/2 - 0.040 - 0.062/2), 0, 0) RELATIVE Origin 
+EXTEND %{
+  %}
+
+COMPONENT HorizontalColdSource = Source_gen(
+  radius   = 0.21/2,
+  zdepth   = 0.15,
+  dist     = 2.6,
+  focus_xw = W_5,
+  focus_yh = 0.120,
+  Lmin     = l_mini,
+  Lmax     = l_maxi,
+  T1       = sT1,
+  I1       = sI1,
+  T2       = sT2,
+  I2       = sI2,
+  T3       = sT3,
+  I3       = sI3,
+  //xdiv_file = "sxd.x_hd",
+  verbose  = 1)
+  AT ((0.17002/2 - 0.040 - 0.062/2), 0, 0) RELATIVE Origin 
+  ROTATED (0, 0, 0) RELATIVE Origin
+  EXTEND %{
+    // Apply exponential correction, by default scales to reactor power 58.3 MW. Use multiplicative lienar scaling as needed.  
+    p = p * get_scale(vx,vy,vz);
+    %}
+
+COMPONENT SourceLambda = Monitor_nD(xwidth=1, yheight=1, options="lambda limits =[0 30] bins = 300,  capture, restore_neutron=1, per cm2, filename = Source_Lambda")
+AT (0,0,0) RELATIVE PREVIOUS 
+
+COMPONENT SourceXDiv = Monitor_nD(xwidth=1, yheight=1, options="x limits=[-0.105, 0.105] bins 1000 hdiv limits=[-4.2, 4.2] bins 300, parallel, file = SXD")
+AT (0,0,0) RELATIVE PREVIOUS 
+
+COMPONENT SourceXDiv2 = Monitor_nD(xwidth=1, yheight=1, options="dx limits=[-5,5] bins 100, capture, per cm2, parallel")
+AT (0,0,0) RELATIVE PREVIOUS 
+
+COMPONENT SourceYDiv = Monitor_nD(xwidth=1, yheight=1, options="dx limits=[-5,5] bins 100, capture, per cm2, parallel")
+AT (0,0,0) RELATIVE PREVIOUS 
+
+COMPONENT SourceDiv = Monitor_nD(xwidth=1, yheight=1, options="dx limits = [-5,5] bins 100 dy limits=[-5,5] bins 100, capture, per cm2, parallel")
+AT (0,0,0) RELATIVE PREVIOUS 
+
+COMPONENT Plaque_Al = Al_window(
+    thickness = Al_Thickness)
+  AT (0, 0, 0.21) RELATIVE HCS
+
+COMPONENT COPY(Plaque_Al) = COPY(Plaque_Al)
+AT (0,0,0.61) RELATIVE HCS
+
+COMPONENT COPY(Plaque_Al) = COPY(Plaque_Al)
+AT (0,0,0.78) RELATIVE HCS
+
+COMPONENT COPY(Plaque_Al) = COPY(Plaque_Al)
+AT (0,0,0.92) RELATIVE HCS
+
+COMPONENT COPY(Plaque_Al) = COPY(Plaque_Al)
+AT (0,0,2.04) RELATIVE HCS
+  
+COMPONENT H5 = Monitor_nD(xwidth = W_5, yheight=0.12,
+  options=" x y,all auto, parallel, bins=50", nowritefile = 1) //remove nowrite
+AT(0,0,2.6) RELATIVE HCS
+EXTEND %{
+  //printf("\n ---------------------");
+  //printf("\n Poids particule initial : %f ",p);
+%}
+
+COMPONENT H5_L = Monitor_nD( xwidth=W_5, yheight=0.12,
+  options="lambda limits =[0.75 30.25] bins = 59 ,per cm2, parallel,  file = Mon_entree_L", nowritefile = 1)
+AT (0,0,0) RELATIVE PREVIOUS
+
+COMPONENT H5_L_dx = Monitor_nD( xwidth=W_5, yheight=0.12,
+  options="lambda bins = 40 limits = [1 12]  dx bins = 40 limits [-6 6], per cm2, parallel,  file = Mon_entree_Ldx", nowritefile = 1)
+AT (0,0,0) RELATIVE PREVIOUS
+
+COMPONENT H5_L_dy = Monitor_nD( xwidth=W_5, yheight=0.12,
+  options="lambda bins = 40 limits = [1 12] dy bins = 40 limits [-6 6], per cm2, parallel,  file = Mon_entree_Ldy", nowritefile = 1)
+AT (0,0,0) RELATIVE PREVIOUS
+  
+COMPONENT H5_enpile = Guide(
+    w1 = W_5, h1 = 0.120, w2 = W_5, h2 = 0.120, l = 1.0,
+   R0 = gR0, Qc = gQc, alpha = 0.9*3, m = 3+0.2, W = gW)
+ AT (0, 0, 0) RELATIVE PREVIOUS
+ EXTEND %{
+      //p = POS_A_COMP(H5_enpile);
+      //printf("%f\n",POS_A_COMP(H5_enpile));
+
+  %}
+
+COMPONENT H52_mon = COPY(H5)(
+	options =" lambda limits =[0.75 30.25] bins = 59, per cm2,file=H52_e",
+	xwidth = W_52_i, restore_neutron = 1)
+  AT ( 0, 0, 1.555) RELATIVE H5
+	JUMP H52e WHEN SCATTERED
+
+
+/* Start of guide sections */
+////////////////////////////////////////////////////////////////////////////////
+/// ================================ H52 ===================================== 
+////////////////////////////////////////////////////////////////////////////////
+COMPONENT H52e = Arm()
+  AT (0, 0, 3.6) RELATIVE Origin
+
+COMPONENT H52_en_pile = Guide_wavy(
+    w1 = W_52_i, h1 = H_52_i, w2 = 67.76766856/1000, h2 = H_52_i, l = L52a,
+    R0 = gR0, Qc = gQc, alpha = 0.9*m_52, m = m_52+0.2, W = gW, wavy_z = 0.04/1000*RAD2DEG, wavy_xy = 0.04/1000*RAD2DEG)
+  AT (0, 0, 0) RELATIVE PREVIOUS
+   EXTEND %{
+
+  %}
+
+//	jeu Membrane gap = 25mm
+
+COMPONENT H52_Al = COPY(Plaque_Al)
+  AT (0,0,MC_GETPAR(PREVIOUS,l) + 0.025/2) RELATIVE PREVIOUS
+
+COMPONENT H52_amont_BOG = COPY(H52_en_pile)(l=L52b, m=2.6,
+  w1 = 67.84890333/1000, w2 = 70.62713241/1000,
+  h1 = MC_GETPAR(H52_en_pile,h2), h2 = 126.3927225/1000)
+  AT (0,0, 5.4) RELATIVE Origin
+
+COMPONENT H52_central_BOG = COPY(PREVIOUS)(l=L52c, 
+  w1 = 70.6661251/1000, w2 = 75.39723802/1000,
+  h1 = 126.4824449/1000, h2 = 137.3687654/1000)
+  AT (0,0,6.267) RELATIVE Origin
+
+COMPONENT H52_aval_BOG = COPY(PREVIOUS)(l=L52d,
+  w1 = 75.43623071/1000, w2 = 77.83428107/1000,
+  h1 = 137.4584878/1000, h2 = 142.9764167/1000)
+  AT (0,0,7.735) RELATIVE Origin
+
+COMPONENT COPY(H52_Al) = COPY(Plaque_Al)
+  AT (0,0,MC_GETPAR(PREVIOUS,l)) RELATIVE PREVIOUS
+
+//		H52 VS gap = 0.060
+
+COMPONENT H52_mon_VS = Monitor_nD(xwidth = MC_GETPAR(H52_aval_BOG,w2), yheight = MC_GETPAR(H52_aval_BOG,h2), 
+  options = "lambda limits =[0.75 30.25] bins = 59,  per cm2,    filename = h52_vs")
+  AT (0,0,0.030) RELATIVE PREVIOUS
+
+//		H52 VS gap = 0.060
+
+COMPONENT H52_C_1 = COPY(H52_aval_BOG)(l=L52e, m=2.1,
+  w1 = 78.02924452/1000, w2 = 79.65231519/1000,
+  h1 = 143.4250288/1000, h2 = 147.1597246/1000)
+  AT (0,0,8.533) RELATIVE Origin
+  ROTATED (0,0.00357741,0) RELATIVE ABSOLUTE
+
+COMPONENT H52_C_2 = COPY(PREVIOUS)(
+  w1 = 79.65556458/1000, w2 = 81.27863526/1000,
+  h1 = 147.1672015/1000, h2 = 150.9018973/1000)
+  AT (3.13125e-5,0,9.0335) RELATIVE Origin
+  ROTATED (0,0.010747,0) RELATIVE ABSOLUTE
+
+COMPONENT H52_C_3 = COPY(H52_C_2)(l=L52f,
+  w1 = 81.28513404/1000, w2 = 86.15759545/1000,
+  h1 = 150.916851/1000, h2 = 162.1284152/1000)
+  AT (0.0001255,0,9.525) RELATIVE Origin
+  ROTATED (0,0.025092,0) RELATIVE ABSOLUTE
+
+COMPONENT H52_C_4 = COPY(PREVIOUS)(
+  w1 = 86.16084484/1000, w2 = 91.03330626/1000,
+  h1 = 162.1358921/1000, h2 = 173.3474563/1000)
+  AT (0.000782813,0,11.0355) RELATIVE Origin
+  ROTATED (0,0.046585,0) RELATIVE ABSOLUTE
+
+COMPONENT H52_C_5 = COPY(PREVIOUS)(
+  w1 = 91.03655565/1000, w2 = 95.90901706/1000,
+  h1 = 173.3549332/1000, h2 = 184.5664974/1000)
+  AT (0.002003001,0,12.535) RELATIVE Origin
+  ROTATED (0,0.068078,0) RELATIVE ABSOLUTE
+
+COMPONENT H52_C_6 = COPY(PREVIOUS)(l=L52g,
+  w1 = 95.91226645/1000, w2 = 100.1559708/1000,
+  h1 = 184.5739743/1000, h2 = 194.3387644/1000)
+  AT (0.003786063,0,14.0365) RELATIVE Origin
+  ROTATED (0,0.088185,0) RELATIVE ABSOLUTE
+
+//		Jeu OS gap = 110 mm
+
+COMPONENT H52_mon_OS = Monitor_nD(xwidth = MC_GETPAR(PREVIOUS,w2), yheight = MC_GETPAR(PREVIOUS,h2),
+  options = "lambda limits =[0.75 30.25] bins = 59, per cm2,   filename = h52_OS")
+  AT (0,0, MC_GETPAR(PREVIOUS,l) + 0.055) RELATIVE PREVIOUS
+
+//		Jeu OS gap = 110 mm
+
+COMPONENT H52_1_7 = COPY(H52_C_6)(l=L52h,
+  w1 = 100.5134037/1000, w2 = 107.0040617/1000,
+  h1 = 195.16122/1000, h2 = 210.0962647/1000)
+  AT (0.005984934,0, 15.4525) RELATIVE Origin
+  ROTATED (0,0.113421,0) RELATIVE ABSOLUTE
+
+COMPONENT H52_1_8 = COPY(PREVIOUS)(l=L52f,
+  w1 = 107.0056864/1000, w2 = 111.8781478/1000,
+  h1 = 210.1000031/1000, h2 = 221.3115673/1000)
+  AT (0.009940222,0,17.4505) RELATIVE Origin
+  ROTATED (0,0.138473,0) RELATIVE ABSOLUTE
+
+COMPONENT H52_1_9 = COPY(PREVIOUS)(
+  w1 = 111.8797725/1000, w2 = 116.752234/1000,
+  h1 = 221.3153058/1000, h2 = 232.52687/1000)
+  AT (0.013565531,0,18.9505) RELATIVE Origin
+  ROTATED (0.000001,0.159959,0.00002) RELATIVE ABSOLUTE
+
+COMPONENT H52_2_10 = COPY(PREVIOUS)(l=L52i,
+  w1 = 116.7619821/1000, w2 = W_52_f,
+  h1 = 232.5493006/1000, h2 = H_52_f)
+  AT (0.017760787,0,20.453) RELATIVE Origin
+  ROTATED (0,0.177878,0) RELATIVE ABSOLUTE
+
+COMPONENT H52_mon_sortie = Monitor_nD(xwidth = W_52_f, yheight = H_52_f,
+  options = "lambda limits =[0.75 30.25] bins = 59, per cm2,   filename = h52_sortie")
+  AT (0,0, MC_GETPAR(PREVIOUS,l) + 0.00025) RELATIVE PREVIOUS
+
+COMPONENT H523_mon_e = Monitor_nD(options =" x y,all auto, parallel,per cm2, capture ,bins=50,    filename=H523_e", 
+	xwidth = W_523_i, yheight = H_523_i, restore_neutron = 1)
+	AT ( (0.12/2 - W_523_i/2) , 0.24/2 - H_523_i/2, 0.00025) RELATIVE H52_mon_sortie
+
+
+////////////////////////////////////////////////////////////////////////////////
+/// ===============================    H523    ================================ 
+////////////////////////////////////////////////////////////////////////////////
+COMPONENT H523e = Arm()
+  AT (0, 0, 0) RELATIVE H523_mon_e
+  ROTATED (0,0.185019,0) RELATIVE ABSOLUTE
+
+COMPONENT H523_2_11 = Guide_wavy(
+    w1 = W_523_i, h1 = H_523_i, w2 = W_523_i, h2 = H_523_i,
+    l = L523a, R0 = gR0, Qc = gQc,  alpha = 0.9*1.4, W = gW,
+    m1 = m_523GEN+0.2, m2 = m_523LAT+0.2,m3 = m_523GEN+0.2, m4 = m_523GEN+0.2, wavy_z = 0.04/1000*RAD2DEG, wavy_xy = 0.04/1000*RAD2DEG)
+  AT (0.053354479, 0.0625,  21.45000723) RELATIVE Origin
+  ROTATED (0,0.03579196,0) RELATIVE H523e
+
+COMPONENT H523_2_12 = COPY(PREVIOUS)(l=L523b)
+  AT (0.05720866022681056,0.0625,22.450018213423213) RELATIVE Origin
+  ROTATED (0,0.125317,0) RELATIVE H523e
+
+COMPONENT H523_2_13 = COPY(PREVIOUS)(l=L523a)
+  AT (0.06533365691431481,0.0625,23.950013529045812) RELATIVE Origin
+  ROTATED (0,0.214842,0) RELATIVE H523e
+
+COMPONENT H523_2_14 = COPY(PREVIOUS)(m3 = 1.55)
+  AT (0.07231279138042677,0.0625,24.950010532101015) RELATIVE Origin
+  ROTATED (0,0.286462,0) RELATIVE H523e
+
+COMPONENT H523_3_15 = COPY(PREVIOUS)(m3 = 1.57)
+  AT (0.08056402880163234,0.0625,25.95250203690296) RELATIVE Origin
+  ROTATED (0,0.358260,0) RELATIVE H523e
+
+COMPONENT H523_3_16 = COPY(PREVIOUS)
+  AT (0.09004620298954025,0.0625,26.95248652040236) RELATIVE Origin
+  ROTATED (0,0.429880,0) RELATIVE H523e
+
+COMPONENT H523_3_17 = COPY(PREVIOUS)(m3 = 1.43)
+  AT (0.1007783133290956,0.0625,27.952462406266577) RELATIVE Origin
+  ROTATED (0,0.501499,0) RELATIVE H523e
+
+// 		Jeu Membrane   gap = 22.5mm
+
+COMPONENT Plaque_Al_523 = COPY(Plaque_Al)
+AT (0,0,MC_GETPAR(PREVIOUS ,l) + 0.00015) RELATIVE PREVIOUS
+
+COMPONENT H523_mon_membrane = Monitor_nD(xwidth = MC_GETPAR(H523_3_17,w2), yheight = MC_GETPAR(H523_3_17,h2),
+  options = "lambda limits =[0.75 30.25] bins = 59,  per cm2,      filename = h523_membrane")
+  AT (0,0, 0.0225/2 - Al_Thickness) RELATIVE PREVIOUS
+
+COMPONENT COPY(Plaque_Al_523) = COPY(Plaque_Al)
+  AT (0,0,0.0225/2-0.001) RELATIVE PREVIOUS
+
+COMPONENT H523_4_18 = COPY(H523_3_17)(l=L523c)
+  AT (0.11303799914266709,0.0625,28.974407945106616) RELATIVE Origin
+  ROTATED (0,0.556790,0) RELATIVE H523e
+
+COMPONENT H523_4_19 = COPY(PREVIOUS)(l=L523d)
+  AT (0.11951147652527981,0.0625,29.47441615024333) RELATIVE Origin
+  ROTATED (0,0.619421,0) RELATIVE H523e
+
+COMPONENT H523_5_20 = COPY(PREVIOUS)
+  AT (0.1370844671044382,0.0625,30.72584929572132) RELATIVE Origin
+  ROTATED (0,0.709053,0) RELATIVE H523e
+
+COMPONENT H523_6_21 = Guide_wavy(
+    w1 = W_523_i, h1 = H_523_i, w2 = 55.9996/1000, h2 = 115.9996/1000,
+    l = L523a, R0 = gR0, Qc = gQc,  alpha = 0.9*1.4, W = gW,
+    m1 = m_523GEN+0.2, m2 = m_523LAT+0.2,m3 = m_523GEN+0.2, m4 = m_523LAT+0.2, wavy_z = 0.04/1000*RAD2DEG, wavy_xy = 0.04/1000*RAD2DEG)
+  AT (0.15661505787569657,0.0625,31.97724673226836) RELATIVE Origin
+  ROTATED (-0.016050844,0.789769,0) RELATIVE H523e
+
+COMPONENT H523_6_22 = COPY(PREVIOUS)(
+  w1 = 56.0001/1000, w2 = 56.9997/1000,
+  h1 = 116.0001/1000, h2 = 116.9997/1000)
+  AT (0.17362780394880706,0.06278,32.977155763112904) RELATIVE Origin
+  ROTATED (-0.047579292,0.861390,0) RELATIVE H523e
+
+COMPONENT H523_6_23 = COPY(PREVIOUS)(m3=1.43,
+  w1 = 57.0002/1000, w2 = 57.9998/1000,
+  h1 = 117.002/1000, h2 = 117.9998/1000)
+  AT (0.19189035557731354,0.06361000000000001,33.977046782776576) RELATIVE Origin
+  ROTATED (-0.079681,0.933010,0) RELATIVE H523e
+
+COMPONENT H523_6_24 = COPY(PREVIOUS)(
+  w1 = 58.0003/1000, w2 = 58.9999/1000,
+  h1 = 118.0003/1000, h2 = 118.9999/1000)
+  AT (0.21140268422597908,0.065,34.97691822892965) RELATIVE Origin
+  ROTATED (-0.111209487,1.004630,0) RELATIVE H523e
+
+COMPONENT H523_mon_GF6 = Monitor_nD(xwidth = MC_GETPAR(PREVIOUS,w2), yheight = MC_GETPAR(PREVIOUS,h2),
+  options = "lambda limits =[0.75 30.25] bins = 59,  per cm2, capture,  filename = h523_GF6")
+  AT (0,0, MC_GETPAR(PREVIOUS,l) + 0.001) RELATIVE PREVIOUS
+
+COMPONENT H523_6_25 = COPY(H523_6_24)(
+  w1 = 59.0004/1000, w2 = 60/1000,
+  h1 = 119.0004/1000, h2 = 120/1000)
+  AT (0.23219684121732712,0.06694,35.97826829798249) RELATIVE Origin
+  ROTATED (-0.143311254,1.076358,0) RELATIVE H523e
+
+COMPONENT H523_7_26 = COPY(PREVIOUS)(
+  w1 = 0.06, w2 = 0.06,
+  h1 = 0.120, h2 = 0.120)
+  AT (0.2542671052106201,0.06944999999999998,36.98059541405637) RELATIVE Origin
+  ROTATED (-0.174839819,1.148156,0) RELATIVE H523e
+
+COMPONENT H523_7_27 = COPY(PREVIOUS)(m3=1.3, m1=1.3)
+  AT (0.2775335728276025,0.0725,37.98039866583927) RELATIVE Origin
+  ROTATED (-0.206941685,1.219776,0) RELATIVE H523e
+
+COMPONENT H523_7_28 = COPY(PREVIOUS)
+  AT (0.302049683647217,0.07611000000000001,38.98017608887426) RELATIVE Origin
+  ROTATED (-0.239043616,1.291396,0) RELATIVE H523e
+
+COMPONENT H523_7_29 = COPY(PREVIOUS)
+  AT (0.3278153993630405,0.08028,39.97992612100911) RELATIVE Origin
+  ROTATED (-0.270572371,1.363016,0) RELATIVE H523e
+
+COMPONENT H523_7_30 = COPY(PREVIOUS)
+  AT (0.3548306797161422,0.08499999999999999,40.97964720013441) RELATIVE Origin
+  ROTATED (-0.302101208,1.434636,0) RELATIVE H523e
+
+COMPONENT H523_7_31 = COPY(PREVIOUS)
+  AT (0.38309548249514647,0.09027000000000002,41.979337764185956) RELATIVE Origin
+  ROTATED (-0.33420339,1.506256,0) RELATIVE H523e
+
+COMPONENT H523_7_32 = COPY(PREVIOUS)	
+  AT (0.4126097635362991,0.09609999999999999,42.978996251147265) RELATIVE Origin	
+  ROTATED (-0.365732422,1.577876,0) RELATIVE H523e	
+
+COMPONENT H523_7_33 = COPY(PREVIOUS)(l=L523a)
+  AT (0.4433734767235359,0.10249000000000001,43.97862109905193) RELATIVE Origin
+  ROTATED (-0.397261564,1.649496,0) RELATIVE H523e
+
+COMPONENT H523_mon_GF7 = Monitor_nD(xwidth = MC_GETPAR(PREVIOUS,w2), yheight = MC_GETPAR(PREVIOUS,h2),
+  options = "lambda limits =[0.75 30.25] bins = 59,  per cm2, capture,  filename = h523_GF7")
+  AT (0,0, MC_GETPAR(PREVIOUS,l) + 0.001) RELATIVE PREVIOUS
+
+COMPONENT H523_7_34 = COPY(H523_7_33)(l=L523e)
+  AT (0.475435532050063,0.10943,44.97975640384744) RELATIVE Origin
+  ROTATED (-0.436486653,1.736998,0) RELATIVE H523e
+
+COMPONENT GFC7A = Monitor_nD(xwidth=0.01, restore_neutron=1, options ="x  y all auto, per cm2,  capture,  disk, filename = GFC7A")
+  AT (-0.03+0.005+0.01,0.06-0.005-0.0225,MC_GETPAR(PREVIOUS,l)) RELATIVE PREVIOUS
+
+COMPONENT GFC7B = Monitor_nD(xwidth=0.01, restore_neutron=1, options ="x  y all auto, per cm2,  capture,  disk, filename = GFC7B")
+  AT (0.04,0,0) RELATIVE PREVIOUS
+
+COMPONENT GFC7C = Monitor_nD(xwidth=0.01, restore_neutron=1, options ="x  y all auto, per cm2,  capture,  disk, filename = GFC7C")
+  AT (0,0,MC_GETPAR(H523_7_34,l)) RELATIVE H523_7_34 
+
+COMPONENT GFC7D = Monitor_nD(xwidth=0.01, restore_neutron=1, options ="x  y all auto, per cm2,  capture,  disk, filename = GFC7D")
+  AT (-0.03+0.005+0.01,-0.06+0.005+0.0225,0) RELATIVE PREVIOUS
+
+COMPONENT GFC7E = Monitor_nD(xwidth=0.01, restore_neutron=1, options ="x  y all auto, per cm2,  capture,  disk, filename = GFC7E")
+  AT (0.04,0,0) RELATIVE PREVIOUS
+
+//		Jeu Obturateur    gap = 120mm
+
+COMPONENT H523_mon_obt = Monitor_nD(xwidth = MC_GETPAR(H523_7_34,w2), yheight = MC_GETPAR(H523_7_34,h2),
+  options = "lambda limits =[0.75 30.25] bins = 59,  per cm2,      filename = h523_obt")
+  AT (0,0, 0.060+MC_GETPAR(H523_7_34,l)) RELATIVE H523_7_34
+
+//		Jeu Obturateur    gap = 120mm
+
+COMPONENT H523_8_35 = COPY(H523_7_34)(l=L523f)
+  AT (0.5278735413042748,0.12137,46.53916627620046) RELATIVE Origin
+  ROTATED (-0.502705567,1.886665,0) RELATIVE H523e
+
+COMPONENT H523_8_36 = COPY(PREVIOUS)(
+  m1 = m_523GEN+0.1, m2 = m_523LAT+0.2,m3 = m_523LAT+0.2, m4 = m_523GEN+0.1)
+  AT (0.618248704957842,0.14329999999999998,49.037836226143874) RELATIVE Origin
+  ROTATED (-0.551533405,2.065715,0) RELATIVE H523e
+
+// debut de courbure à 400m
+COMPONENT H523_8_37 = COPY(PREVIOUS)
+  AT (0.7164308113293614,0.16736,51.5362493617394) RELATIVE Origin
+  ROTATED (-0.482991147,2.334272,0) RELATIVE H523e
+
+COMPONENT H523_8_38 = COPY(PREVIOUS)(l=L523a)
+  AT (0.8263921395105792,0.18844,54.035482410840736) RELATIVE Origin
+  ROTATED (-0.427071046,2.585156,0) RELATIVE H523e
+
+COMPONENT H523_9_39 = COPY(PREVIOUS)(l=L523f)
+  AT (0.8748464656087097,0.19591,55.03722359491107) RELATIVE Origin
+  ROTATED (-0.372041223,2.836184,0) RELATIVE H523e
+
+COMPONENT H523_9_40 = COPY(PREVIOUS)
+  AT (1.0066115373972724,0.21214,57.53421161991108) RELATIVE Origin
+  ROTATED (-0.292497428,3.194284,0) RELATIVE H523e
+
+COMPONENT H523_9_41 = COPY(PREVIOUS)
+  AT (1.153977241795021,0.22490000000000002,60.03037772077911) RELATIVE Origin
+  ROTATED (-0.213183428,3.552384,0) RELATIVE H523e
+
+COMPONENT H523_mon_GF9 = Monitor_nD(xwidth = MC_GETPAR(PREVIOUS,w2), yheight = MC_GETPAR(PREVIOUS,h2),
+  options = "lambda limits =[0.75 30.25] bins = 59,  per cm2, capture,  filename = h523_GF9")
+  AT (0,0, MC_GETPAR(PREVIOUS,l) + 0.001) RELATIVE PREVIOUS
+
+COMPONENT H523_9_42 = COPY(H523_9_41)(l=L523a)
+  AT (1.317040278536899,0.23421,62.52677704857659) RELATIVE Origin
+  ROTATED (-0.157642414,3.803268,0) RELATIVE H523e
+
+COMPONENT H523_mon_c9_s = Monitor_nD(xwidth = MC_GETPAR(PREVIOUS,w2), yheight = MC_GETPAR(PREVIOUS,h2),
+  options = "lambda limits =[0.75 30.25] bins = 59,  per cm2,      filename = h523_c9_s")
+  AT (0,0, MC_GETPAR(PREVIOUS,l) + 0.001) RELATIVE PREVIOUS
+
+// reste 3 m courbés à 400m puis 10m de guide droit pour le guide octogonal
+
+// A guide section c10 here was removed after conversation with Michael Kreuz
+
+// Rectangular-Octagonal Transition
+COMPONENT Straight1 = Guide_anyshape(
+   geometry="straight1.off",
+   R0 = gR0, Qc = gQc, alpha = 2.3, m = 1.3, W = gW)
+  AT (1.394133376874446,0.23697,63.63100808691037) RELATIVE Origin
+  ROTATED(-0.118598794, 3.874852, 0) RELATIVE H523e
+
+COMPONENT Straight2 = Guide_anyshape(
+   geometry="straight2.off",
+   R0 = gR0, Qc = gQc, alpha = 3.0, m = 1.3, W = gW)
+  AT (1.5198718821079948,0.24065,65.40258651050388) RELATIVE Origin
+  ROTATED(-0.074410124, 3.874852, 0) RELATIVE H523e
+
+COMPONENT Taper1 = Guide_anyshape(
+   geometry="taper1.off",
+   R0 = gR0, Qc = gQc, alpha = 2.45, m = 2.53, W = gW)
+  AT (1.5309872792485733,0.240860,65.55975176204159) RELATIVE Origin
+  ROTATED(-0.037586034, 3.874852, 0) RELATIVE H523e
+
+COMPONENT Taper2 = Guide_anyshape(
+   geometry="taper2.off",
+   R0 = gR0, Qc = gQc, alpha = 2.3, m = 2.55, W = gW)
+  AT (1.708196445126711,0.2425,68.05703001512144) RELATIVE Origin
+  ROTATED(0, 3.874852, 0) RELATIVE H523e
+
+COMPONENT Taper3 = Guide_anyshape(
+   geometry="taper3.off",
+   R0 = gR0, Qc = gQc, alpha = 2.7, m = 2.55, W = gW)
+  AT (0,  0,  2.5+0.005) RELATIVE PREVIOUS
+
+COMPONENT Taper4 = Guide_anyshape(
+   geometry="taper4.off",
+   R0 = gR0, Qc = gQc, alpha = 3.00, m = 2.55, W = gW)
+  AT (0,  0,  2.5+0.005) RELATIVE PREVIOUS
+
+//End Octagonal Guide 
+COMPONENT SetT0 = Monitor_nD(xwidth = 1.2, yheight = 1.2, options = "t limits=[0, 0.03] bins=45, capture, parallel, filename = VPostOct", nowritefile = 1)
+  AT (0,0,0.25163) RELATIVE Taper4
+ EXTEND%{
+     // Use to set t0 for TOF 
+  %}
+COMPONENT PostOct_Mon_Pos1 = Monitor_nD(xwidth=0.060, restore_neutron=1, yheight=0.090, options ="x limints=[-0.03,0.03] bins=600 y limints=[-0.045,0.045] bins=900, per cm2, dx limits=[-3,3] bins=60 dy limits=[-3,3] bins=60, capture, restore_neutron=1, parallel, filename = PostOct_Position1", nowritefile = 1) //43mil
+  AT (0,0,0.25163) RELATIVE Taper4
+
+COMPONENT PostOct_Mon_Pos = Monitor_nD(xwidth=0.060, restore_neutron=1, yheight=0.090, options ="x limints=[-0.03,0.03] bins=600 y limints=[-0.045,0.045] bins=900, per cm2, dx limits=[-3,3] bins=60 dy limits=[-3,3] bins=60, capture, restore_neutron=1, parallel, filename = PostOct_Position") //43mil
+  AT (0,0,0) RELATIVE PREVIOUS
+
+COMPONENT PostOct_Mon_heatmap = Monitor_nD(xwidth=0.10, restore_neutron=1, yheight=0.10, options ="x limints=[-0.045,0.03] bins=270 y limints=[-0.045,0.045] bins=270, per cm2, capture, restore_neutron=1, parallel, filename = PostOct_heatmap") //43mil
+  AT (0,0,0) RELATIVE PREVIOUS
+
+// ===========================================================
+// BEAM PROFILE DIAGNOSTICS 
+// All placed at the same reference point as the existing PostOct monitors
+// ===========================================================
+// --- Horizontal vs vertical divergence -------------------
+COMPONENT PostOct_Mon_Divergence = Monitor_nD(
+  xwidth=0.10, restore_neutron=1, yheight=0.10,
+  options="dx limits=[-3,3] bins=200 dy limits=[-3,3] bins=200, per cm2, parallel, filename=PostOct_Divergence")
+  AT (0,0,0) RELATIVE PREVIOUS
+
+// --- Wavelength vs vertical angle -------------------------
+COMPONENT PostOct_Mon_LambdaVsVAngle = Monitor_nD(
+  xwidth=0.10, restore_neutron=1, yheight=0.10,
+  options="lambda limits=[0,15] bins=200 dy limits=[-3,3] bins=200, parallel, filename=PostOct_LambdaVsVAngle")
+  AT (0,0,0) RELATIVE PREVIOUS
+
+// --- Wavelength vs horizontal angle -----------------------
+COMPONENT PostOct_Mon_LambdaVsHAngle = Monitor_nD(
+  xwidth=0.10, restore_neutron=1, yheight=0.10,
+  options="lambda limits=[0,15] bins=200 dx limits=[-3,3] bins=200, parallel, filename=PostOct_LambdaVsHAngle")
+  AT (0,0,0) RELATIVE PREVIOUS
+
+// --- Horizontal & vertical trace space --------------------
+COMPONENT PostOct_Mon_PhaseSpace_X = Monitor_nD(
+  xwidth=0.10, restore_neutron=1, yheight=0.10,
+  options="x limits=[-0.03,0.03] bins=200 dx limits=[-3,3] bins=200, per cm2, parallel, filename=PostOct_PhaseSpace_X")
+  AT (0,0,0) RELATIVE PREVIOUS
+
+COMPONENT PostOct_Mon_PhaseSpace_Y = Monitor_nD(
+  xwidth=0.10, restore_neutron=1, yheight=0.10,
+  options="y limits=[-0.045,0.045] bins=200 dy limits=[-3,3] bins=200, per cm2, parallel, filename=PostOct_PhaseSpace_Y")
+  AT (0,0,0) RELATIVE PREVIOUS
+
+COMPONENT PostOct_Mon_div = Monitor_nD(xwidth=0.060, restore_neutron=1, yheight=0.090, options ="dx limints=[-3,3] bins=600 dy limints=[-3,3] bins=600, per cm2, capture, restore_neutron=1, parallel, filename = PostOct_Div") //43mil
+  AT (0,0,0) RELATIVE PREVIOUS
+  EXTEND %{
+      // TOF would be t-t0 
+    %}
+
+/* 3x3 gold foil grid, intensity values must be scaled using these monitors to match the required reactor power, placed by
+   assuming a minimal rectangle around the octagon aperture, and assuming vertically and horizontally equidistant foils. */
+COMPONENT GFA = Monitor_nD(xwidth=0.01, restore_neutron=1, options ="x  y all auto, per cm2,  capture,  disk, filename = GFA")
+  AT (-0.01625,0.02,0) RELATIVE PREVIOUS
+
+COMPONENT GFB = Monitor_nD(xwidth=0.01, restore_neutron=1, options ="x  y all auto, per cm2,  capture,  disk, filename = GFB")
+  AT (0.00625+0.01,0,0) RELATIVE PREVIOUS
+
+COMPONENT GFC = Monitor_nD(xwidth=0.01, restore_neutron=1, options ="x  y all auto, per cm2,  capture,  disk, filename = GFC")
+  AT (0.00625+0.01,0,0) RELATIVE PREVIOUS
+
+COMPONENT GFD = Monitor_nD(xwidth=0.01, restore_neutron=1, options ="x  y all auto, per cm2,  capture,  disk, filename = GFD")
+  AT (0,-0.01-0.01,0) RELATIVE GFA
+
+COMPONENT GFE = Monitor_nD(xwidth=0.01, restore_neutron=1, options ="x  y all auto, per cm2,  capture,  disk, filename = GFE")
+  AT (0.00625+0.01,0,0) RELATIVE PREVIOUS
+
+COMPONENT GFF = Monitor_nD(xwidth=0.01, restore_neutron=1, options ="x  y all auto, per cm2,  capture,  disk, filename = GFF")
+  AT (0.00625+0.01,0,0) RELATIVE PREVIOUS
+
+COMPONENT GFG = Monitor_nD(xwidth=0.01, restore_neutron=1, options ="x  y all auto, per cm2,  capture,  disk, filename = GFG")
+  AT (0,-2*(0.01+0.01),0) RELATIVE GFA
+
+COMPONENT GFH = Monitor_nD(xwidth=0.01, restore_neutron=1, options ="x  y all auto, per cm2,  capture,  disk, filename = GFH")
+  AT (0.00625+0.01,0,0) RELATIVE PREVIOUS
+
+COMPONENT GFI = Monitor_nD(xwidth=0.01, restore_neutron=1, options ="x  y all auto, per cm2,  capture,  disk, filename = GFI")
+  AT (0.00625+0.01,0,0) RELATIVE PREVIOUS
+
+COMPONENT PostOct_Mon_Lambda = Monitor_nD(xwidth = 0.060,  restore_neutron = 1, yheight = 0.090, options = "lambda limits =[0 30] bins = 300,  capture, restore_neutron=1, per cm2, filename = PostOct_Lambda") //25mil
+  AT (0,0,0.001) RELATIVE PostOct_Mon_heatmap
+  EXTEND %{
+
+  %}
+
+COMPONENT upto_oct = Virtual_output(filename = "upto_oct.txt") 
+AT (0, 0, 0) RELATIVE PREVIOUS
+
+// The output flux is recorded and saved here
+COMPONENT Virtual_MCPL = MCPL_output(
+  filename = "upto_oct.mcpl") 
+ AT (0, 0, 0) RELATIVE  PREVIOUS
+
+// This filter drops CN incident at overcritical angles to obtain a conservative estimate of UCN production
+/*
+COMPONENT UCNFilter = Monitor_nD(xwidth=2*0.0371945, restore_neutron = 1, options = "lambda limits =[8.812, 8.917],  bins = 10,  capture, restore_neutron=1, disk, per cm2, filename = UCNFilter") //25mil
+  AT (0,0,0.025) RELATIVE PREVIOUS
+  EXTEND %{
+          double lambda = 1e10 * 6.62607015e-34/(1.675e-27*sqrt(vx * vx + vy * vy + vz * vz));
+          double vperp = sqrt(vx*vx + vy*vy);
+          double angle = atan(vperp/sqrt(vz*vz));
+          double theta_cr = 1.73/1000 * lambda * (3.0-0.22);
+          //printf("vperp, vz, angle:%f, %f, %f\n", vperp, vz, angle);
+
+          if (angle > theta_cr && lambda > 8.812 && lambda < 8.917) {
+                 ABSORB; 
+                 printf("\n\nAbsorbing neutron with theta %f > theta_cr (%f)\n\n", angle, theta_cr);
+          }
+          //if (angle < theta_cr && lambda > 8.812 && lambda < 8.914) {
+          //       printf("Letting neutron through with theta %f < theta_cr (%f)\n", angle, theta_cr);
+          //}
+
+    %}
+*/
+
+COMPONENT UCNFluxMon = Monitor_nD(xwidth=2*0.0371945,  restore_neutron = 1, options = "lambda limits =[8.812, 8.917],  bins = 10, disk, restore_neutron=1, per cm2, filename = UCNFluxMon") //25mil
+  AT (0,0,0.00) RELATIVE PREVIOUS
+
+// ===========================================================
+// 8.9A CRITICAL-BAND GATE
+// Kills any neutron outside the resonance band before it reaches
+// the diagnostic monitors below, so those monitors only ever see
+// the gated sub-population.
+// ===========================================================
+COMPONENT PostOct_UCNBand_Gate = Arm()
+  AT (0,0,0) RELATIVE PREVIOUS
+EXTEND %{
+  double lambda = 1e10 * 6.62607015e-34 / (1.675e-27 * sqrt(vx*vx + vy*vy + vz*vz));
+  if (lambda < 8.812 || lambda > 8.917) {
+    ABSORB;
+  }
+%}
+
+// --- Where is the 8.9A population spatially? ------------------
+COMPONENT PostOct_Mon_UCNBand_Spatial = Monitor_nD(
+  xwidth=0.10, restore_neutron=1, yheight=0.10,
+  options="x limits=[-0.045,0.045] bins=90 y limits=[-0.045,0.045] bins=90, per cm2, parallel, filename=PostOct_UCNBand_Spatial")
+  AT (0,0,0) RELATIVE PREVIOUS
+
+// --- Where is its momentum directed? ---------------------------
+COMPONENT PostOct_Mon_UCNBand_Divergence = Monitor_nD(
+  xwidth=0.10, restore_neutron=1, yheight=0.10,
+  options="dx limits=[-3,3] bins=100 dy limits=[-3,3] bins=100, parallel, filename=PostOct_UCNBand_Divergence")
+  AT (0,0,0) RELATIVE PREVIOUS
+
+// --- Full trace-space, band-gated (position + ITS OWN angle) ---
+COMPONENT PostOct_Mon_UCNBand_PhaseSpace_X = Monitor_nD(
+  xwidth=0.10, restore_neutron=1, yheight=0.10,
+  options="x limits=[-0.03,0.03] bins=100 dx limits=[-3,3] bins=100, per cm2, parallel, filename=PostOct_UCNBand_PhaseSpace_X")
+  AT (0,0,0) RELATIVE PREVIOUS
+
+COMPONENT PostOct_Mon_UCNBand_PhaseSpace_Y = Monitor_nD(
+  xwidth=0.10, restore_neutron=1, yheight=0.10,
+  options="y limits=[-0.045,0.045] bins=100 dy limits=[-3,3] bins=100, per cm2, parallel, filename=PostOct_UCNBand_PhaseSpace_Y")
+  AT (0,0,0) RELATIVE PREVIOUS
+
+
+FINALLY%{
+
+      // Diagnositic prints used to match positions to the listing documentation
+      //printf("%f,%f,%f \n",POS_A_COMP(H52_en_pile).x,POS_A_COMP(H52_en_pile).y,POS_A_COMP(H52_en_pile).z);
+
+      /*
+      printf("H523_6_21 (w2, h2): %f, %f", MC_GETPAR(H523_6_21, w2), MC_GETPAR(H523_6_21, h2));
+      printf("H523_6_22 (w1, h1): %f, %f", MC_GETPAR(H523_6_22, w1), MC_GETPAR(H523_6_22, h1));
+      printf("H523_6_22 (w2, h2): %f, %f", MC_GETPAR(H523_6_22, w2), MC_GETPAR(H523_6_22, h2));
+
+      printf("H52_amont_BOG: %f,%f,%f \n",POS_A_COMP(H52_amont_BOG).x,POS_A_COMP(H52_amont_BOG).y,POS_A_COMP(H52_amont_BOG).z);
+      printf("H52_central_BOG: %f,%f,%f \n",POS_A_COMP(H52_central_BOG).x,POS_A_COMP(H52_central_BOG).y,POS_A_COMP(H52_central_BOG).z);
+      printf("H52_aval_BOG: %f,%f,%f \n",POS_A_COMP(H52_aval_BOG).x,POS_A_COMP(H52_aval_BOG).y,POS_A_COMP(H52_aval_BOG).z);
+      printf("H52_C_1: %f,%f,%f \n",POS_A_COMP(H52_C_1).x,POS_A_COMP(H52_C_1).y,POS_A_COMP(H52_C_1).z);
+      printf("H52_C_2: %f,%f,%f \n",POS_A_COMP(H52_C_2).x,POS_A_COMP(H52_C_2).y,POS_A_COMP(H52_C_2).z);
+      printf("H52_C_3: %f,%f,%f \n",POS_A_COMP(H52_aval_BOG).x,POS_A_COMP(H52_aval_BOG).y,POS_A_COMP(H52_aval_BOG).z);
+      printf("%f,%f,%f \n",POS_A_COMP(H52_2_10).x,POS_A_COMP(H52_2_10).y,POS_A_COMP(H52_2_10).z + MC_GETPAR(H52_2_10,l)); 
+
+      for (int i = 1; i <= 88; i++) {
+        // Print "x, y, z\n"
+        printf("%f, %f, %f\n", POS_A_COMP_INDEX(i).x, POS_A_COMP_INDEX(i).y, POS_A_COMP_INDEX(i).z);
+      */
+
+%}
+
+END
+
