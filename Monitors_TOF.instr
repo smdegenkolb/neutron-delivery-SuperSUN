@@ -1,0 +1,242 @@
+/***********************************************************
+*         McStas instrument definition URL=http://mcstas.risoe.dk
+*
+* Instrument: ILL_H5 design 2014
+*
+* %Identification
+* Written by: Husain Manasawala (husainm97@gmail.com)
+* Date: Jul 2024
+* Origin: Universität Heidelberg
+* Release: McStas 2.7.2
+* Version: $Revision: 0.0 $
+* %INSTRUMENT_SITE: ILL, Grenoble 
+*
+* H5 as it is installed in 2014, data taken from the spreadsheet "H52 Listing"
+*
+* %Description
+*
+* 
+* %End
+*******************************************************************************/
+
+
+DEFINE INSTRUMENT ILL_H5_2014(Xss1 = 0, epoch=0)
+
+DECLARE %{
+  
+  /* HCS (H5) source  parameters valeurs callées sur mes mesures de feuille d'or  */
+  double t_0 = 0;
+  double mslit1_xw;
+  double mslit1_yh;
+  double mslit2_xw;
+  double mslit2_yh;
+  char oct_input[100];
+
+%}
+
+INITIALIZE %{ 
+
+   printf("Epoch: %f\n", epoch);  
+   //snprintf(oct_input, sizeof(oct_input), "forward_iter_%d/upto_oct.txt", (int)epoch);
+   snprintf(oct_input, sizeof(oct_input), "Upto_Oct_Exp/upto_oct.txt"); //forward_iter_%d/ , (int)epoch
+   printf("Filename: %s\n", oct_input);
+
+   mslit1_xw = 0.060;
+   mslit1_yh = 0.090;
+   mslit2_xw = 0.0036;
+   mslit2_yh = 0.070;
+
+%}
+
+TRACE
+
+/* ================================ H5 =============================== */
+
+COMPONENT Origin = Progress_bar()
+AT(0,0,0) ABSOLUTE
+
+COMPONENT upto_oct = Virtual_input(filename = oct_input) 
+AT (0, 0, 0) RELATIVE  PREVIOUS
+
+COMPONENT OCTMON = Monitor_nD(xwidth=1, yheight=1, options="x limits=[-0.2, 0.2] bins 300 y limits=[-0.2, 0.2] bins 300")
+AT (0,0,0) RELATIVE PREVIOUS
+
+COMPONENT PostSS_Mon_heatmap = Monitor_nD(xwidth=0.060, restore_neutron=1, yheight=0.090, options ="x limints=[-0.03,0.03] bins=600 y limints=[-0.045,0.045] bins=900, per cm2, capture, restore_neutron=1, parallel, filename = PostSS_heatmap") //43mil
+  AT (0,0,0) RELATIVE PREVIOUS
+
+COMPONENT PostSS_Mon_div = Monitor_nD(xwidth=0.060, restore_neutron=1, yheight=0.090, options ="dx limints=[-3,3] bins=600 dy limints=[-3,3] bins=600, per cm2, capture, restore_neutron=1, parallel, filename = PostSS_Div") //43mil
+  AT (0,0,0) RELATIVE PREVIOUS
+  EXTEND %{
+      //t_0 = t;
+    %}
+COMPONENT GFA = Monitor_nD(xwidth=0.01, restore_neutron=1, options ="x  y all auto, per cm2,  capture,  disk, filename = GFA")
+  AT (-0.01625,0.02,0) RELATIVE PREVIOUS
+
+COMPONENT GFB = Monitor_nD(xwidth=0.01, restore_neutron=1, options ="x  y all auto, per cm2,  capture,  disk, filename = GFB")
+  AT (0.00625+0.01,0,0) RELATIVE PREVIOUS
+
+COMPONENT GFC = Monitor_nD(xwidth=0.01, restore_neutron=1, options ="x  y all auto, per cm2,  capture,  disk, filename = GFC")
+  AT (0.00625+0.01,0,0) RELATIVE PREVIOUS
+
+COMPONENT GFD = Monitor_nD(xwidth=0.01, restore_neutron=1, options ="x  y all auto, per cm2,  capture,  disk, filename = GFD")
+  AT (0,-0.01-0.01,0) RELATIVE GFA
+
+COMPONENT GFE = Monitor_nD(xwidth=0.01, restore_neutron=1, options ="x  y all auto, per cm2,  capture,  disk, filename = GFE")
+  AT (0.00625+0.01,0,0) RELATIVE PREVIOUS
+
+COMPONENT GFF = Monitor_nD(xwidth=0.01, restore_neutron=1, options ="x  y all auto, per cm2,  capture,  disk, filename = GFF")
+  AT (0.00625+0.01,0,0) RELATIVE PREVIOUS
+
+COMPONENT GFG = Monitor_nD(xwidth=0.01, restore_neutron=1, options ="x  y all auto, per cm2,  capture,  disk, filename = GFG")
+  AT (0,-2*(0.01+0.01),0) RELATIVE GFA
+
+COMPONENT GFH = Monitor_nD(xwidth=0.01, restore_neutron=1, options ="x  y all auto, per cm2,  capture,  disk, filename = GFH")
+  AT (0.00625+0.01,0,0) RELATIVE PREVIOUS
+
+COMPONENT GFI = Monitor_nD(xwidth=0.01, restore_neutron=1, options ="x  y all auto, per cm2,  capture,  disk, filename = GFI")
+  AT (0.00625+0.01,0,0) RELATIVE PREVIOUS
+
+
+COMPONENT PostSS_Mon_Lambda = Monitor_nD(xwidth = 0.060,  restore_neutron = 1, yheight = 0.090, options = "lambda limits =[0 30] bins = 300,  capture, restore_neutron=1, per cm2, filename = PostSS_Lambda") //25mil
+  AT (0,0,0.001) RELATIVE PostSS_Mon_heatmap
+  EXTEND %{
+
+  %}
+
+COMPONENT PostSS_xhdiv = Monitor_nD(xwidth = 0.060,  restore_neutron = 1, yheight = 0.090, options = "hdiv limits = [-2,2] bins=200 x limits =[-0.04, 0.04] bins = 400,  capture, restore_neutron=1, per cm2, filename = PostSS_xhdiv") //25mil
+  AT (0,0,0.001) RELATIVE PostSS_Mon_heatmap
+  EXTEND %{
+
+  %}
+
+COMPONENT PostSS_hdiv = Monitor_nD(xwidth = 0.060,  restore_neutron = 1, yheight = 0.090, options = "hdiv limits = [-2,2] bins=200,  capture, restore_neutron=1, per cm2, filename = PostSS_hdiv") //25mil
+  AT (0,0,0.001) RELATIVE PostSS_Mon_heatmap
+  EXTEND %{
+
+  %}
+
+/*
+COMPONENT UCNFilter = Monitor_nD(xwidth=2*0.0371945, restore_neutron = 1, options = "lambda limits =[8.812, 8.917],  bins = 10,  capture, restore_neutron=1, disk, per cm2, filename = UCNFilter") //25mil
+  AT (0,0,0.03) RELATIVE PREVIOUS
+  EXTEND %{
+          double lambda = 1e10 * 6.62607015e-34/(1.675e-27*sqrt(vx * vx + vy * vy + vz * vz));
+          double vperp = sqrt(vx*vx + vy*vy);
+          double angle = atan(vperp/sqrt(vz*vz));
+          double theta_cr = 1.73/1000 * lambda * (3.0-0.22);
+          //printf("vperp, vz, angle:%f, %f, %f\n", vperp, vz, angle);
+
+          if (angle > theta_cr && lambda > 8.812 && lambda < 8.917) {
+                 ABSORB; 
+                 printf("\n\nAbsorbing neutron with theta %f > theta_cr (%f)\n\n", angle, theta_cr);
+          }
+          //if (angle < theta_cr && lambda > 8.812 && lambda < 8.914) {
+          //       printf("Letting neutron through with theta %f < theta_cr (%f)\n", angle, theta_cr);
+          //}
+
+    %}
+
+COMPONENT UCNFluxMon = Monitor_nD(xwidth=2*0.0371945,  restore_neutron = 1, options = "lambda limits =[8.812, 8.917],  bins = 10, disk, restore_neutron=1, per cm2, filename = UCNFluxMon") //25mil
+  AT (0,0,0.00) RELATIVE PREVIOUS
+  */
+
+COMPONENT Slit_Xss1 = Slit(xwidth=0.0053, yheight=0.090)// 
+ AT (Xss1, 0, 0) RELATIVE  PREVIOUS
+ EXTEND%{
+ // This uses a custom component.
+    t=0;
+    t_0 = t;
+  %}
+
+COMPONENT Slit_Xss2 = Slit_trapezoid()//Slit(xwidth=0.0053, yheight=0.090)// 
+ AT (0.0, 0, 0.0024) RELATIVE  PREVIOUS
+ EXTEND%{
+ // This uses a custom component.
+  %}
+
+COMPONENT Slit_Xss3 = Slit_trapezoid_large()//Slit(xwidth=0.0053, yheight=0.090)// 
+ AT (0.0, 0, 0.0079) RELATIVE  PREVIOUS
+ EXTEND%{
+ // This uses a custom component.
+  %}
+
+COMPONENT Slit1_Lambda = Monitor_nD(xwidth = 0.060, yheight = 0.090, options = "lambda limits =[0.0 30.0] bins = 300,  capture,    per cm2, restore_neutron=1, parallel, filename = Slit1_Lambda")
+  AT (0,0,0.000) RELATIVE PREVIOUS
+
+
+COMPONENT Slit1_Pos = Monitor_nD(xwidth=0.06, restore_neutron=1, yheight=0.09, options ="x limits=[-0.03,0.03] bins = 600, y limits=[-0.045,0.045] bins=900, per cm2, parallel, dx limits=[-3,3] bins=60 dy limits=[-3,3] bins=60,  capture,  filename = Slit1_Position")
+  AT (0,0,0) RELATIVE PREVIOUS
+  EXTEND %{ 
+   //t=0;
+   //3.6343
+    %}
+
+COMPONENT Slit1_heatmap = Monitor_nD(xwidth=0.06, restore_neutron=1, yheight=0.09, options ="x limits=[-0.03,0.03] bins = 600, y limits=[-0.045,0.045] bins=900, per cm2, parallel,  capture,  filename = Slit1_heatmap")
+  AT (0,0,0.012) RELATIVE PostSS_Mon_heatmap
+  EXTEND %{ 
+    %}
+
+COMPONENT Slit1_yD = Monitor_nD(xwidth=0.06, restore_neutron=1, yheight=0.09, options ="y limits=[-0.05,0.05] bins = 100, dy  limits=[-3,3] bins=100, per cm2, parallel,  capture,  filename = Slit1_yD")
+  AT (0,0,0) RELATIVE PREVIOUS
+  EXTEND %{ 
+    %}
+
+COMPONENT Slit1_Velocity = Monitor_nD(xwidth = mslit2_xw, yheight = mslit2_yh, options = "vx limits=[-150.0,150.0] bins=30 vy limits=[-150.0,150.0] bins=300 vz limits=[0.0, 2000.0] bins=2000 v limits=[0.0, 2000.0] bins=2000, capture, parallel, filename = Slit1_velocity")
+  AT (0,0,3.6343) RELATIVE PostSS_Mon_heatmap
+  EXTEND %{
+        p = p * pow(2.718281, -16.373 * (t - t_0));
+    %}
+
+COMPONENT TOF1 = Monitor_nD(xwidth = mslit2_xw, yheight = mslit2_yh, options = "t limits=[0, 0.03] bins=45, capture, parallel, filename = TOF1")
+  AT (-0.107,0,0) RELATIVE PREVIOUS
+
+
+COMPONENT TOF2 = Monitor_nD(xwidth = mslit2_xw, yheight = mslit2_yh, options = "t limits=[0, 0.03] bins=45, capture, parallel, filename = TOF2")
+  AT (0.05,0,0) RELATIVE PREVIOUS
+
+
+COMPONENT TOF3 = Monitor_nD(xwidth = mslit2_xw, yheight = mslit2_yh, options = "t limits=[0, 0.03] bins=45, capture, parallel, filename = TOF3")
+  AT (0.01,0,0) RELATIVE PREVIOUS
+
+
+COMPONENT TOF4 = Monitor_nD(xwidth = mslit2_xw, yheight = mslit2_yh, options = "t limits=[0, 0.03] bins=45, capture, parallel, filename = TOF4")
+  AT (0.015,0,0) RELATIVE PREVIOUS
+
+
+COMPONENT TOF5 = Monitor_nD(xwidth = mslit2_xw, yheight = mslit2_yh, options = "t limits=[0, 0.03] bins=45, capture, parallel, filename = TOF5")
+  AT (0.025,0,0) RELATIVE PREVIOUS
+
+
+COMPONENT TOF6 = Monitor_nD(xwidth = mslit2_xw, yheight = mslit2_yh, options = "t limits=[0, 0.03] bins=45, capture, parallel, filename = TOF6")
+  AT (0.017,0,0) RELATIVE PREVIOUS
+
+
+COMPONENT TOF7 = Monitor_nD(xwidth = mslit2_xw, yheight = mslit2_yh, options = "t limits=[0, 0.03] bins=45, capture, parallel, filename = TOF7")
+  AT (0.018,0,0) RELATIVE PREVIOUS
+
+
+COMPONENT TOF8 = Monitor_nD(xwidth = mslit2_xw, yheight = mslit2_yh, options = "t limits=[0, 0.03] bins=45, capture, parallel, filename = TOF8")
+  AT (0.015,0,0) RELATIVE PREVIOUS
+
+
+COMPONENT TOF9 = Monitor_nD(xwidth = mslit2_xw, yheight = mslit2_yh, options = "t limits=[0, 0.03] bins=45, capture, parallel, filename = TOF9")
+  AT (0.05,0,0) RELATIVE PREVIOUS
+
+COMPONENT XPROF = Monitor_nD(xwidth = 1, yheight = mslit2_yh, options = "x limits=[-0.2505,0.2505] bins=101 per cm2 capture, parallel, filename = XPROF")
+  AT (0.007,0,0) RELATIVE Slit1_Velocity
+  ROTATED(0,0,0) RELATIVE Slit1_Velocity
+  EXTEND %{ 
+
+    %}
+
+COMPONENT XPROF2 = Monitor_nD(xwidth = 1, yheight = mslit2_yh, options = "x limits=[-0.250,0.250] bins=500 capture, parallel, filename = XPROF2")
+  AT (0,0,0) RELATIVE Slit1_Velocity
+  EXTEND %{ 
+
+    %}
+
+FINALLY%{
+
+%}
+
+END
+

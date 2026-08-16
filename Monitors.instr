@@ -1,0 +1,166 @@
+/***********************************************************
+*         McStas instrument definition URL=http://mcstas.risoe.dk
+*
+* Instrument: ILL_H5 design 2014
+*
+* %Identification
+* Written by: Husain Manasawala (husainm97@gmail.com)
+* Date: Jul 2024
+* Origin: Universität Heidelberg
+* Release: McStas 2.7.2
+* Version: $Revision: 0.0 $
+* %INSTRUMENT_SITE: ILL, Grenoble 
+*
+* H5 as it is installed in 2014, data taken from the spreadsheet "H52 Listing"
+*
+* %Description
+*
+* 
+* %End
+*******************************************************************************/
+
+
+DEFINE INSTRUMENT ILL_H5_2014(Xss1 = 0.0, epoch=0)
+
+DECLARE %{
+  
+  /* HCS (H5) source  parameters valeurs callées sur mes mesures de feuille d'or  */
+  double t_0 = 0;
+  double mslit1_xw;
+  double mslit1_yh;
+  double mslit2_xw;
+  double mslit2_yh;
+  char oct_input[100];
+  double get_scale(double vx, double vy, double vz) {
+      // 13 elements total (indices 0 to 12) containing your newly optimized anchor heights
+      static double scale_anchors[] = {
+          0.000000,
+          13.335215, 0.519852, 0.062719, 0.012067, 0.002581,
+          0.000781, 0.000277, 0.000119, 0.000046, 0.000027, 0.000010,
+          0.000000
+      };
+      
+      double v = sqrt(vx*vx + vy*vy + vz*vz);
+      if (v <= 0.0) return 0.0;
+      
+      double lambda = 3956.0337 / v; 
+      if (lambda < 0.0 || lambda >= 30.0) return 0.0;
+      
+      double step = 3.0;
+      int i = (int)(lambda / step);
+      
+      // Safety guard: scale_anchors has 13 elements, so maximum interval index is 11 (i and i+1)
+      if (i < 0 || i > 11) return 0.0;
+      
+      double x = (lambda - (i * step)) / step; 
+      
+      double y0 = scale_anchors[i];
+      double y1 = scale_anchors[i + 1];
+      
+      // Explicitly clamp lookups to legal array indices [0, 12]
+      int idx_prev = (i - 1 < 0)  ? 0  : i - 1;
+      int idx_next = (i + 2 > 12) ? 12 : i + 2;
+      
+      // Smooth finite-difference slopes
+      double m0 = 0.5 * (scale_anchors[i + 1] - scale_anchors[idx_prev]);
+      double m1 = 0.5 * (scale_anchors[idx_next] - scale_anchors[i]);
+      
+      // Standard Cubic Hermite Polynomials
+      double h00 =  2.0*x*x*x - 3.0*x*x + 1.0;
+      double h10 =      x*x*x - 2.0*x*x + x;
+      double h01 = -2.0*x*x*x + 3.0*x*x;
+      double h11 =      x*x*x -      x*x;
+      
+      double scale = h00*y0 + h10*step*m0 + h01*y1 + h11*step*m1;
+      
+      return (scale > 0.0) ? scale : 0.0;
+  }
+
+%}
+
+INITIALIZE %{ 
+
+   printf("Epoch: %f\n", epoch);  
+   snprintf(oct_input, sizeof(oct_input), "Upto_Oct_Exp/upto_oct.txt"); //forward_iter_%d/ , (int)epoch
+   printf("Filename: %s\n", oct_input);
+
+   mslit1_xw = 0.060;
+   mslit1_yh = 0.090;
+   mslit2_xw = 0.0036;
+   mslit2_yh = 0.070;
+
+%}
+
+TRACE
+
+/* ================================ H5 =============================== */
+
+COMPONENT Origin = Progress_bar()
+AT(0,0,0) ABSOLUTE
+
+COMPONENT upto_oct = Virtual_input(filename = oct_input) 
+AT (0, 0, 0) RELATIVE  PREVIOUS
+
+COMPONENT OCTMON = Monitor_nD(xwidth=1, yheight=1, options="x limits=[-0.5, 0.5] bins 500 y limits=[-0.5, 0.5] bins 500")
+AT (0,0,0) RELATIVE PREVIOUS
+
+COMPONENT Slit_Xss1 = Slit(xwidth=0.0053, yheight=0.090)// 
+ AT (Xss1, 0, 0.0001) RELATIVE  PREVIOUS
+ EXTEND%{
+ // This uses a custom component.
+    t=0;
+    t_0 = t;
+    //p = p * get_scale(vx,vy,vz);
+  %}
+
+COMPONENT Slit_Xss2 = Slit_trapezoid()//Slit(xwidth=0.0053, yheight=0.090)// 
+ AT (0.0, 0, 0.0024) RELATIVE  PREVIOUS
+ EXTEND%{
+ // This uses a custom component.
+  %}
+
+COMPONENT Slit_Xss3 = Slit_trapezoid_large()//Slit(xwidth=0.0053, yheight=0.090)// 
+ AT (0.0, 0, 0.0079) RELATIVE  PREVIOUS
+ EXTEND%{
+ // This uses a custom component.
+  %}
+
+
+
+COMPONENT Slit1_Pos = Monitor_nD(xwidth=0.06, restore_neutron=1, yheight=0.09, options ="x limits=[-0.03,0.03] bins = 600, y limits=[-0.045,0.045] bins=900, per cm2, parallel, dx limits=[-3,3] bins=60 dy limits=[-3,3] bins=60,  capture,  filename = Slit1_Position")
+  AT (0,0,0) RELATIVE PREVIOUS
+  EXTEND %{ 
+   //t=0;
+   //3.6343
+    %}
+
+
+COMPONENT Slit1_Velocity = Monitor_nD(xwidth = 1, yheight = mslit2_yh, options = "vx limits=[-150.0,150.0] bins=30 vy limits=[-150.0,150.0] bins=300 vz limits=[0.0, 2000.0] bins=2000 v limits=[0.0, 2000.0] bins=2000, capture, parallel, restore_neutron=1, filename = detector_velocity")
+  AT (0,0,3.6343) RELATIVE upto_oct
+  EXTEND %{
+        p = p * pow(2.718281, -16.373 * (t - t_0));
+    %}
+
+
+COMPONENT XPROF = Monitor_nD(xwidth = 1, yheight = mslit2_yh, options = "x limits=[-0.2505,0.2505] bins=101 per cm2 capture, parallel, filename = XPROF")
+  AT (0.007,0,0) RELATIVE Slit1_Velocity
+  ROTATED(0,0,0) RELATIVE Slit1_Velocity
+
+  EXTEND %{ 
+    %}
+
+COMPONENT XPROF2 = Monitor_nD(xwidth = 1, yheight = mslit2_yh, options = "x limits=[-0.250,0.250] bins=500 capture, parallel, filename = XPROF2")
+  AT (0,0,0) RELATIVE Slit1_Velocity
+  EXTEND %{ 
+
+    %}
+
+COMPONENT detector = Virtual_output(filename = "output.txt") 
+AT (0, 0, 0) RELATIVE  PREVIOUS
+
+FINALLY%{
+
+%}
+
+END
+
